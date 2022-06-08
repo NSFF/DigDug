@@ -1,0 +1,1 @@
+("6.6" ("f6959f157366388682a6efca15cdd3e3f197ee4e" . "11aa2281f02553a04d73cd02c0a2cfb8a9b70769") (collects #"errortrace" #"errortrace-key.rkt") (collects #"r5rs" #"lang" #"reader.rkt") (collects #"r5rs" #"main.rkt"))

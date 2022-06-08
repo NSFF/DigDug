@@ -1,0 +1,112 @@
+#lang r5rs
+
+(#%require "position_adt.rkt")
+(#%require "field_adt.rkt")
+(#%require (only racket/base error))
+(#%require (only racket/base random))
+
+(#%provide enemy)
+
+(define (enemy x y speler_speed initialized_field keyword enemy_number)
+  (let ((enemy_position (((position) 'new) x y))
+        (monster keyword)
+        (enemy_ID enemy_number)
+        (attack_status 'off)
+        (attack-time 0)
+        (direction_x 1) ;1= rechts -1= links 0= geen richting
+        (direction_y 0)) ;1= boven -1= onder 0= geen richting
+
+    (define (lower_ID)
+      (set! 
+    
+    (define (x)
+      (((position) 'x) enemy_position))
+    (define (y)
+      (((position) 'y) enemy_position))
+    
+    (define (set-x! x)
+      (((position) 'set-x!) enemy_position x))
+    (define (set-y! y)
+      (((position) 'set-y!) enemy_position y))
+    
+    (define (set-xy! x y)
+      (set-x! x)
+      (set-y! y))
+    
+    (define (teken! teken-adt)
+      (teken-adt 'teken_enemies))
+
+    (define (add_attack_time! time)
+      (set! attack-time (+ attack-time time)))
+
+    (define (attack! teken-adt)
+      (set! attack-time 0)
+      (if (check_direction)
+          (begin ((initialized_field 'field_set_character_keyword!) (/ (+ (x) (* direction_x speler_speed))
+                                                                       speler_speed)
+                                                                    (/ (+ (y) (* direction_y speler_speed))
+                                                                       speler_speed)
+                                                                    'enemy)
+                 ((teken-adt 'teken-fygar-aanval!) (+ (x) (* direction_x speler_speed))
+                                                   (+ (y) (* direction_y speler_speed)))
+                 (set! attack_status 'on))))
+   
+              
+    
+    (define (random_direction!)
+      (let ((n (random 4)))
+        (cond ((= n 0) (set! direction_x 1)
+                       (set! direction_y 0))
+              ((= n 1) (set! direction_x -1)
+                       (set! direction_y 0))
+              ((= n 2) (set! direction_x 0)
+                       (set! direction_y 1))
+              (else (set! direction_x 0)
+                    (set! direction_y -1)))))
+
+    (define (no_collision?)
+      ((initialized_field 'field_empty?) (/ (+ (x) (* direction_x speler_speed))
+                                            speler_speed)
+                                         (/ (+ (y) (* direction_y speler_speed))
+                                            speler_speed)))
+    
+    (define (Check_direction)
+      (define (iter n)
+        (cond ((= n 0) #f)
+              ((no_collision?) #t)
+              (else (random_direction!)
+                    (iter (- n 1)))))
+      (iter 16))
+                                  
+               
+    (define (new_enemy_position!)
+      ((initialized_field 'field_set_character_keyword!) (/ (x) speler_speed) (/ (y) speler_speed) 'empty)
+      ;(display "\n")(display (x))(display "\t") (display (y))
+      (set-xy! (+ (x) (* direction_x speler_speed))
+               (+ (y) (* direction_y speler_speed))))
+                     
+    (define (beweeg! teken-adt)
+      (cond ((and (eq? monster 'fygar) (> attack-time (+ (random 5000) 2000))) (attack! teken-adt))
+            ((eq? attack_status 'on) (set! attack_status 'off)
+                                     ((initialized_field 'field_set_character_keyword!) (/ (+ (x) (* direction_x speler_speed))
+                                                                                           speler_speed)
+                                                                                        (/ (+ (y) (* direction_y speler_speed))
+                                                                                           speler_speed)
+                                                                                        'empty))
+            ((check_direction) (new_enemy_position!)
+                               ((initialized_field 'field_set_character_keyword!) (/ (x) speler_speed) (/ (y) speler_speed) 'enemy))))
+
+
+    
+    (define (dispatch msg)
+      (cond ((eq? msg 'x) (x))
+            ((eq? msg 'y) (y))
+            ((eq? msg 'set-x!) set-x!)
+            ((eq? msg 'set-y!) set-y!)
+            ((eq? msg 'set-xy!) set-xy!)
+            ((eq? msg 'lower_ID) (lower_ID))
+            ((eq? msg 'add_attack_time!) add_attack_time!)
+            ((eq? msg 'beweeg!) beweeg!)
+            ((eq? msg 'teken!) teken!)
+            (else (error "not supported: " msg))))
+    dispatch))

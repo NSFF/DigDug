@@ -1,0 +1,39 @@
+#lang r5rs
+
+(#%require (only racket/base error))
+(#%require (only racket/base exit))
+
+(#%provide menu)
+
+;menu ADT: used to handle the menu at the start and ending of the game, keyboard-input is also handled here
+(define (menu start_function teken-adt)
+  (let ((menu_selection_number 0)
+        (menu_status 'on)
+        (amount_of_options 2))
+
+
+    (define (initialize_menu!)
+      (teken-adt 'initialize_menu!)
+      (teken!))
+    
+    (define (teken!)
+      ((teken-adt 'teken-menu!) menu_selection_number menu_status))
+    
+    (define (start)
+      (cond ((eq? menu_selection_number 0) (start_function))
+            ((eq? menu_selection_number 1) (exit))))
+    
+    (define (game-keyboard-input key)
+
+      (cond ((eq? key 'up) (set! menu_selection_number(modulo (+ menu_selection_number 1) amount_of_options)))
+            ((eq? key 'down) (set! menu_selection_number (modulo (- menu_selection_number 1) amount_of_options)))
+            ((eq? key #\return) (set! menu_status 'off)
+                                (start)))
+      (teken!))
+
+  (define (dispatch msg)
+    (cond ((eq? msg 'game-keyboard-input) game-keyboard-input)
+          ((eq? msg 'teken!) (teken!))
+          ((eq? msg 'initialize_menu!) (initialize_menu!))
+          (else (error "not supported: " msg))))
+  dispatch))

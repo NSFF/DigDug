@@ -1,0 +1,134 @@
+(#%require "position_adt.rkt")
+(#%require "field_adt.rkt")
+(#%require "speler_adt.rkt")
+(#%require "enemy_adt.rkt")
+(#%require "teken_adt.rkt")
+(#%require "Library/Graphics2.rkt")
+(#%require "menu_adt.rkt")
+
+
+(#%require (only racket/base random))
+
+(define (spel w
+              h
+              standard_h
+              standard_w
+              air_space
+              gameboard_resolution
+              character_w/h
+              respawn_time
+              life
+              amount_of_tunnels
+              min_tunnel_length
+              max_tunnel_length
+              amount_of_enemies)
+  
+  (let* ((speler_speed (floor (/ w gameboard_resolution)))
+         (w (- w (modulo w gameboard_resolution)))
+         (h (- h (modulo h gameboard_resolution)))
+         (scale_h (/ h standard_h))
+         (scale_w (/ w standard_w))
+         (vector_of_enemies (vector 'fygar 'pooka))
+         (amount_of_different_kind_of_enemies (vector-length vector_of_enemies)))
+   
+    (define initialized_field (field w h character_w/h gameboard_resolution speler_speed))
+    ((initialized_field 'field_set_rect_keyword!) 0 0 (- gameboard_resolution 1) air_space 'ground)
+    
+    (define speler-adt (speler 0 0 w h character_w/h gameboard_resolution speler_speed life air_space))
+    (define teken-adt (maak-adt-teken w h scale_w scale_h "Dig_Dug " air_space character_w/h speler_speed initialized_field speler-adt "black"))
+    
+    (define (game_initialisation)
+      (define (add-enemies time)
+        (cond ((>= time respawn_time)
+               (let ((pos (initialized_field 'get_random_tunnel_pos)))
+                 ((initialized_field 'field_set_character_keyword!) (((position) 'x) pos) (((position) 'y) pos) 'enemy)
+                 ((teken-adt 'add-enemy!) (* (((position) 'x) pos) speler_speed) (* (((position) 'y) pos) speler_speed) (vector-ref vector_of_enemies (random amount_of_different_kind_of_enemies)))
+                 (set! speler-time 0)
+                 (teken-adt 'teken-enemies!)))))
+      
+      (define (spawn_enemies amount_of_enemies)
+        (if (not (= amount_of_enemies 0))
+            (begin (add-enemies respawn_time)
+                   (spawn_enemies (- amount_of_enemies 1)))))
+
+      (initialized_field 'reinitialize-field!)
+      (speler-adt 'initialize_player!)
+            
+      (teken-adt 'initialize_background)
+      (teken-adt 'reinitialize-tunnel!)
+      ((initialized_field 'initialize_tunnel!) amount_of_tunnels air_space teken-adt min_tunnel_length max_tunnel_length)
+
+      (teken-adt 'initialize_text_tile)
+      (teken-adt 'initialize_speler_tile)
+      ((speler-adt 'teken!) teken-adt)
+      
+      (spawn_enemies amount_of_enemies)
+      (teken-adt 'teken-enemies!))
+    
+    (define (game-keyboard-input key)
+      
+      (cond((eq? key 'right);if you wanne use letters:example(eq? key #\a) 
+            ((speler-adt 'beweeg!) 'right))
+           ((eq? key 'left)
+            ((speler-adt 'beweeg!) 'left))
+           ((eq? key 'up)
+            ((speler-adt 'beweeg!) 'up))
+           ((eq? key 'down)
+            ((speler-adt 'beweeg!) 'down)))
+      
+      ((speler-adt 'check_enemy_hit) initialized_field)
+      ((teken-adt 'visual_update_life!) speler-adt)
+      ((initialized_field 'field_set_character_keyword!)(speler-adt 'x)(speler-adt 'y) 'empty)
+      ((speler-adt 'teken!) teken-adt))
+    
+    (define (spel-lus-functie)
+      
+      (define (game_start! delta-time)
+        
+        (set! speler-time (+ speler-time delta-time))
+        
+        (if ((teken-adt 'update_enemy_positions!) speler-time)
+            (begin (if (eq? ((speler-adt 'check_enemy_hit) initialized_field)
+                            'dead)
+                       (begin (teken-adt 'clear_game!)
+                              (start!)))
+                   ((teken-adt 'visual_update_life!) speler-adt)
+                   (set! speler-time 0)))
+
+        )
+      (game_initialisation)
+      ((teken-adt 'set-toets-functie!) game-keyboard-input)
+      ((teken-adt 'set-spel-lus-functie!) game_start!))
+    
+    (define speler-time 0)
+    
+    (define (start!)
+      
+      (define menu-adt (menu spel-lus-functie teken-adt))
+      (menu-adt 'initialize_menu!)
+      
+      (define (menu_game_loop delta-time)
+        ((teken-adt 'set-toets-functie!) (menu-adt 'game-keyboard-input)))
+      
+      ((teken-adt 'set-spel-lus-functie!) menu_game_loop))
+    
+    (define (dispatch msg)
+      (cond ((eq? msg 'start!) (start!))
+            (else (error "not supported: " msg))))
+    dispatch))
+
+(define game (spel 500;height
+                   500;width
+                   480;standard_height
+                   480;standard_width
+                   3;air_space
+                   30;gameboard_resolution
+                   ((make-bitmap-tile "sprites/digdug.png") 'get-w);character_w/h
+                   5000;respawn_time
+                   3;life
+                   3;amount_of_tunnels
+                   4;min_tunnel_length
+                   10;max_tunnel_length
+                   2;amount_of_enemies
+                   ))
+(game 'start!)

@@ -1,0 +1,77 @@
+#lang r5rs
+
+(#%require "position_adt.rkt")
+(#%require (only racket/base error))
+(#%require (only racket/base random))
+(#%require (only racket/base exit))
+
+(#%provide speler)
+
+(define (speler x y w h character_w/h gameboard_resolution speler_speed life)
+  (let((positie-speler (((position) 'new) x y))
+       (life life))
+
+  (define (initialize_player!)
+    (set-xy! (/ w 2) (/ h 2)))
+    
+  (define (teken! teken-adt)
+    ((teken-adt 'teken-tunnel!) (* (dispatch 'x) speler_speed) (* (dispatch 'y) speler_speed))
+    ((teken-adt 'teken-speler!) dispatch))
+
+  (define (set-x! x)
+    (((position) 'set-x!) positie-speler x))
+  (define (set-y! y)
+    (((position) 'set-y!) positie-speler y))
+
+  (define (set-xy! x y)
+    (set-x! x)
+    (set-y! y))
+  
+  (define (x)
+    (((position) 'x) positie-speler))
+  (define (y)
+    (((position) 'y) positie-speler))
+  
+  (define (beweeg! key)
+    (cond ((eq? key 'right)
+           (if (< (+ (x) 1) gameboard_resolution)
+               (set-xy! (+ (x) 1) (y))))
+          ((eq? key 'left)
+           (if (>= (- (x) 1) 0)
+               (set-xy! (- (x) 1) (y))))
+          ((eq? key 'up)
+           (if (>= (- (y) 1) 0)
+               (set-xy! (x) (- (y) 1))))
+          ((eq? key 'down)
+           (if (< (+ (y) 1) gameboard_resolution)
+               (set-xy! (x) (+ (y) 1))))
+          (else (error "not supported key: " key))))
+
+  (define (enemy_hit? field-adt)
+   ((field-adt 'field_enemy?) (x) (y)))
+
+
+  (define (check_enemy_hit field-adt)
+    (if (enemy_hit? field-adt)
+        (reduce_life!)))
+    
+  (define (reduce_life!)
+    (set! life (- life 1))
+    (if (<= life 0)
+        'dead
+        'alive))
+  
+  (define (dispatch msg)
+    (cond ((eq? msg 'set-x!) set-x!)
+          ((eq? msg 'set-y!) set-y!)
+          ((eq? msg 'set-xy!) set-xy!)
+          ((eq? msg 'x)(x))
+          ((eq? msg 'y)(y))
+          ((eq? msg 'life) life)
+          ((eq? msg 'check_enemy_hit) check_enemy_hit)
+          ((eq? msg 'reduce_life!) (reduce_life!))
+          ((eq? msg 'pos) positie-speler)
+          ((eq? msg 'beweeg!) beweeg!)
+          ((eq? msg 'teken!) teken!)
+          (else (error "not supported: " msg))))
+  dispatch))

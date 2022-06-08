@@ -1,0 +1,170 @@
+#lang r5rs
+
+(#%require "Library/Graphics2.rkt")
+(#%require "enemy_adt.rkt")
+(#%require (only racket/base error))
+(#%require (only racket/base random))
+
+
+(#%provide maak-adt-teken)
+
+(define (maak-adt-teken w h scale_w scale_h title air_space character_w/h speler_speed initialized_field speler bg_color_string)
+  (let* ((venster (make-window (+ w speler_speed) (+ h 12) title));een bug fixed-> bug caused door Graphics2.rkt gemaakt door de assistenten
+         (background-layer (venster 'make-layer))
+         (background-color (make-tile w (+ h speler_speed)))
+         (tunnel-layer (venster 'make-layer))
+         (tunnel-tile (make-tile w (+ h character_w/h))) ; height is higher for debugging reasons
+         (speler-layer (venster 'make-layer))
+         (speler-tile (make-bitmap-tile "sprites/digdug.png" "sprites/digdug-mask.png"))
+         (enemy-layer (venster 'make-layer))
+         (enemy-fygar-attack-tile (make-bitmap-tile "sprites/vuur.png" "sprites/vuur-mask.png"))
+         (enemy-attack-layer (venster 'make-layer))
+         (text-layer (venster 'make-layer))
+         (text-tile (make-tile w h))
+         (menu-layer (venster 'make-layer))
+         (menu-tile (make-tile w (+ h speler_speed)))
+         (enemy_number 0))
+    ((menu-layer 'add-drawable) menu-tile)
+    ((background-layer 'add-drawable) background-color)
+    ((tunnel-layer 'add-drawable) tunnel-tile)
+
+
+    (define (add-tile-to-background x y)
+      (let ((new-tile (make-bitmap-tile "sprites/ground.bmp")))
+        ((new-tile 'set-x!) x)
+        ((new-tile 'set-y!) y)
+        ((background-layer 'add-drawable) new-tile)))
+    
+    (define (initialize-background y w h keyword)
+      (if (eq? keyword 'bitmap_background)
+          (let ((y+h (+ y h)))
+            (define (iter cntr-w cntr-h)
+              (cond ((<= y+h cntr-h) (display 'background_initialization_done))
+                    ((<= w cntr-w) (iter 0 (+ cntr-h character_w/h)))
+                    (else (add-tile-to-background cntr-w cntr-h)                    
+                          (iter (+ cntr-w character_w/h) cntr-h))))
+            (iter 0 y))
+          ((background-color 'draw-rectangle) 0 y w (+ h 3) "brown")))
+   
+    (define enemies (list 'dummy))
+    
+    (define (teken-speler! speler-adt)
+        ((speler-tile 'set-x!) (* (speler-adt 'x) speler_speed))
+        ((speler-tile 'set-y!) (* (speler-adt 'y) speler_speed)))
+
+    (define (add-enemy! x y bitmap keyword)
+      (let ((new-tile bitmap))
+        ((new-tile 'set-x!) x)
+        ((new-tile 'set-y!) y)
+        (set! enemies (append enemies (list (vector (enemy x y speler_speed initialized_field keyword enemy_number) new-tile))))
+        (set! enemy_number (+ enemy_number 1))
+        ((enemy-layer 'add-drawable) new-tile)))
+
+    (define (remove-enemy! n);list start from position 0
+      (define (iter lst n)
+        (cond ((> n 0) (iter (cdr lst) (- n 1)))
+              (else ((enemy-layer 'remove-drawable) (vector-ref (cadr lst) 1))
+                    (set-cdr! lst (cddr lst)))))
+      (iter enemies n))
+
+    (define (update_enemy_positions! time)
+      (define (iter lst)
+        (cond ((null? lst))
+              ((eq? 'dummy (car lst)) (iter (cdr lst)))
+              (else (let ((lst (car lst)))
+                      (((vector-ref lst 0) 'add_attack_time!) time)
+                      (((vector-ref lst 0) 'beweeg!) dispatch)
+                      (((vector-ref lst 1) 'set-x!) ((vector-ref lst 0) 'x))
+                      (((vector-ref lst 1) 'set-y!) ((vector-ref lst 0) 'y)))
+                    (iter (cdr lst)))))
+      
+      (if (>= time 350)
+          (begin ((enemy-attack-layer 'remove-drawable) enemy-fygar-attack-tile)
+                 (iter enemies)
+                 #t)
+          #f))
+
+    (define (teken-fygar-aanval! x y)
+      ((enemy-attack-layer 'add-drawable) enemy-fygar-attack-tile)
+      ((enemy-fygar-attack-tile 'set-x!) x)
+      ((enemy-fygar-attack-tile 'set-y!) y))
+      
+    
+    (define (add-enemy-random! x y keyword)
+      (cond ((equal? keyword 'pooka)
+             (add-enemy! x y (make-bitmap-tile "sprites/monster1.png" "sprites/monster1-mask.png") keyword))
+            (else (add-enemy! x y (make-bitmap-tile "sprites/monster2.png" "sprites/monster2-mask.png") keyword))))
+    
+    (define (teken-enemies!)
+      (define (iter lst)
+        (cond ((null? lst))
+              ((eq? 'dummy (car lst)) (iter (cdr lst)))
+              (else  (let ((lst (car lst)))
+                       (((vector-ref lst 1) 'set-x!) ((vector-ref lst 0) 'x))
+                       (((vector-ref lst 1) 'set-y!) ((vector-ref lst 0) 'y)))
+                       (iter (cdr lst)))))
+      (iter enemies))
+    
+    (define (teken-tunnel! x y)
+      ((tunnel-tile 'draw-rectangle) x y (* character_w/h scale_w) (* character_w/h scale_h) bg_color_string))
+    
+    (define (reinitialize-tunnel!)
+      (tunnel-tile 'clear))
+    
+    (define (visual_update_life! speler-adt)
+      (text-tile 'clear)
+      ((text-tile 'draw-text) (string-append "life: " (number->string (speler-adt 'life))) (* 16 scale_h) 0 0 "red"))
+
+    (define (clear_game!)
+      (define (iter lst)
+        (cond ((null? lst))
+              ((eq? 'dummy (car lst)) (iter (cdr lst)))
+              (else  (remove-enemy! 0)
+                    (iter (cdr lst)))))
+      (iter enemies)
+      ((text-layer 'remove-drawable) text-tile)
+      ((speler-layer 'remove-drawable) speler-tile)
+      (background-color 'clear))
+    
+    ;gives a background color to the menu
+    (define (initialize_menu!)
+      ((text-tile 'draw-rectangle) 0 0 w (+ h 3) bg_color_string))
+    
+    (define (teken-menu! menu_selection_number menu_status)
+      (menu-tile 'clear)
+      (cond ((eq? menu_status 'off))
+            ((eq? menu_selection_number 0)
+             ((menu-tile 'draw-text) "Start" (* 16 scale_h) (round (- (/ w 2) 20)) (round (- (/ h 2) 20)) "yellow")
+             ((menu-tile 'draw-text) "Exit" (* 16 scale_h) (round (- (/ w 2) 20)) (+ (round (- (/ h 2) 20)) (* 30 scale_h)) "red"))
+            ((eq? menu_selection_number 1)
+             ((menu-tile 'draw-text) "Start" (* 16 scale_h) (round (- (/ w 2) 20)) (round (- (/ h 2) 20)) "red")
+             ((menu-tile 'draw-text) "Exit" (* 16 scale_h) (round (- (/ w 2) 20)) (+ (round (- (/ h 2) 20)) (* 30 scale_h)) "yellow"))))
+   
+      
+    (define (set-spel-lus-functie! fun)
+      ((venster 'set-update-callback!) fun))
+    
+    (define (set-toets-functie! fun)
+      ((venster 'set-key-callback!) fun))
+    
+    
+    (define (dispatch msg)
+      (cond ((eq? msg 'teken-speler!) teken-speler!)
+            ((eq? msg 'teken-tunnel!) teken-tunnel!)
+            ((eq? msg 'reinitialize-tunnel!) (reinitialize-tunnel!))
+            ((eq? msg 'teken-enemies!) (teken-enemies!))
+            ((eq? msg 'teken-menu!) teken-menu!)
+            ((eq? msg 'add-enemy!) add-enemy-random!)
+            ((eq? msg 'teken-fygar-aanval!) teken-fygar-aanval!)
+            ((eq? msg 'initialize_text_tile) ((text-layer 'add-drawable) text-tile))
+            ((eq? msg 'initialize_speler_tile) ((speler-layer 'add-drawable) speler-tile))
+            ((eq? msg 'initialize_background) (initialize-background (* air_space speler_speed) w (- h (* air_space speler_speed)) 'brown))
+            ((eq? msg 'visual_update_life!) visual_update_life!)
+            ((eq? msg 'initialize_menu!) (initialize_menu!))
+            ((eq? msg 'remove-enemy!) remove-enemy!)
+            ((eq? msg 'clear_game!) (clear_game!))
+            ((eq? msg 'update_enemy_positions!) update_enemy_positions!)
+            ((eq? msg 'set-spel-lus-functie!) set-spel-lus-functie!)
+            ((eq? msg 'set-toets-functie!) set-toets-functie!)
+            (else (error "not supported: " msg))))
+    dispatch))
